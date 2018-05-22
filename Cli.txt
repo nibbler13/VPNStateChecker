@@ -1,0 +1,91 @@
+
+
+Check Point Endpoint Security command line usage:
+  trac <command> [<args>]
+
+  where <command> is one of:
+
+	start
+			starts Endpoint Security service
+
+	stop
+			stops Endpoint Security service
+
+	enable_log
+			enable logs
+
+	disable_log
+			disable logs
+			
+	info [-s <sitename>] [-tr true]
+			lists all connections or prints sitename info
+
+	connect [-s <sitename>] [-g <gatewayname>] [-u <username> -p <password> | -d <dn> | -f <p12> | -pin <PIN> -sn <serial>]
+			connects using the given connection.
+			Optional credentials can be supplied
+
+	update [-s <sitename>] [-g <gatewayname>] [-u <username> -p <password> | -d <dn> | -f <p12> | -pin <PIN> -sn <serial>]
+			connects using the given connection.
+			Optional credentials can be supplied
+			
+	connectgui [-s <sitename>]
+			connects using the GUI (GUI must be running)
+
+	disconnect [-g <gatewayname>]
+			disconnects the current connection
+			Optionally disconnect a specific tunnel of the active connection
+
+	create -s <sitename> [-lo <login option>] [-a <authentication method>] 
+			creates a new connection
+
+	delete -s <sitename>
+			deletes the given connection
+
+	help [-c <command>]
+			prints usage information
+
+	list
+			lists the user's DNs stored in the CAPI
+
+	ver
+			prints the version
+
+	log
+			prints log messages
+
+	enroll_p12 -s <sitename> -f <filename> -p <password> -r <registrationkey> [ -l <keylength> ]
+			enroll of p12 certificate
+
+	enroll_capi -s <sitename> -r <registrationkey> [ -i <providerindex> -l <keylength> -sp <strongkeyprotection> ]
+			enroll of capi certificate
+
+	renew_p12 -s <sitename> -f <filename> -p <password> [ -l <keylength> ]
+			renew p12 certificate
+
+	renew_capi -s <sitename> -d <dn> [ -l <keylength> -sp <strongkeyprotection> ]
+			renew capi certificate
+
+	change_p12_pwd -f <filename> [ -o <oldpassword> -n <newpassword> ]
+			change p12 password
+
+	set_proxy_settings [-m <mode>] [ -h <hostname> -po <port> ] [-u <username> -p <password>]
+			change proxy settings
+	
+	hotspot_reg
+			register to hotspot
+
+	firewall -st <state>
+			enable/disable firewall
+			
+	sdl -st <state>
+			enable/disable sdl
+
+	userpass -s <sitename> -u <username> -p <password>
+			save username and password (for ATM only)
+
+	certpass -s <sitename> -f <certificate filename> -p <password>
+			save certificate and password (for ATM only)
+
+	get_cross_site_intersections
+			find if there are gateways from different CMAs that has ip ranges intersections 
+			(used in case of multi-site mode only)
