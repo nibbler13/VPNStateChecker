@@ -7,16 +7,15 @@ namespace VPNStateChecker {
 		private const string LOG_FILE_NAME = "VPNStateChecker_*.log";
 		private const int MAX_LOGFILES_QUANTITY = 7;
 
-		public static void LogMessageToFile(string msg) {
+		public static void LogMessageToFile(string msg, ref string result) {
 			Console.WriteLine(msg);
 
 			string logFileName = GetTodayLogFileName();
+			result += ToLogFormat(msg, true);
 
 			try {
-				using (System.IO.StreamWriter sw = System.IO.File.AppendText(logFileName)) {
-					string logLine = System.String.Format("{0:G}: {1}", System.DateTime.Now, msg);
-					sw.WriteLine(logLine);
-				}
+				using (System.IO.StreamWriter sw = System.IO.File.AppendText(logFileName))
+					sw.WriteLine(ToLogFormat(msg, false));
 			} catch (Exception e) {
 				Console.WriteLine("Cannot write to log file: " + logFileName + " | " + e.Message + " | " + e.StackTrace);
 			}
@@ -42,6 +41,10 @@ namespace VPNStateChecker {
 			} catch (Exception e) {
 				Console.WriteLine("Cannot delete old lig files: " + e.Message + " | " + e.StackTrace);
 			}
+		}
+
+		private static string ToLogFormat(string text, bool addNewLine) {
+			return System.String.Format("{0:G}: {1}", System.DateTime.Now, text) + (addNewLine ? Environment.NewLine : "");
 		}
 	}
 }

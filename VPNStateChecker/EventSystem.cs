@@ -33,7 +33,7 @@ namespace VPNStateChecker {
 			resourcesRdpPort = Properties.Settings.Default.ResourcesToCheckRdp.Split(';');
 		}
 
-		public void CheckVpnState() {
+		public void CheckVpnStateByTimer() {
 			Timer timer = new Timer(Properties.Settings.Default.CheckingPeriodInMinutes * 60 * 1000);
 			timer.Elapsed += Timer_Elapsed;
 			timer.AutoReset = true;
@@ -41,8 +41,9 @@ namespace VPNStateChecker {
 			Timer_Elapsed(null, null);
 		}
 
-		private void Timer_Elapsed(object sender, ElapsedEventArgs e) {
-			LoggingSystem.LogMessageToFile("Проверка доступности VPN сервиса");
+		public void CheckVpnState(bool isSingleCheck = false) {
+			string checkResult = string.Empty;
+			LoggingSystem.LogMessageToFile("--- Проверка доступности VPN сервиса", ref checkResult);
 
 			if (previousSendDay != DateTime.Now.Day)
 				mailSystemErrorSendedToStp = false;
@@ -50,99 +51,106 @@ namespace VPNStateChecker {
 			string errors = string.Empty;
 
 			if (!File.Exists(tracExeFullPath)) {
-				string message = "Не удается найти приложение trac.exe: " + tracExeFullPath;
-				LoggingSystem.LogMessageToFile(message);
-				errors += message + Environment.NewLine;
+				string currentMessage = "!!! Не удается найти приложение trac.exe: " + tracExeFullPath;
+				LoggingSystem.LogMessageToFile(currentMessage, ref checkResult);
+				errors += currentMessage + Environment.NewLine;
 			} else {
 				string currentConfig = ExecuteCommand("info");
-				LoggingSystem.LogMessageToFile("Текущая конфигурация: " + currentConfig);
-				
+				LoggingSystem.LogMessageToFile("Текущая конфигурация: " + currentConfig, ref checkResult);
+
 				foreach (string vpnSite in vpnSitesName) {
 					if (!currentConfig.Contains(vpnSite)) {
-						string message = "Конфигурация не содержит подключения к хосту: " + vpnSite;
-						LoggingSystem.LogMessageToFile(message);
-						errors += message + Environment.NewLine + 
-							"Текущая конфигурация: " + Environment.NewLine + 
+						string currentMessage = "!!! Конфигурация не содержит подключения к хосту: " + vpnSite;
+						LoggingSystem.LogMessageToFile(currentMessage, ref checkResult);
+						errors += currentMessage + Environment.NewLine +
+							"Текущая конфигурация: " + Environment.NewLine +
 							currentConfig + Environment.NewLine + Environment.NewLine;
 						continue;
 					}
-
-					LoggingSystem.LogMessageToFile("Попытка подключения к сайту: " + vpnSite);
+					
+					LoggingSystem.LogMessageToFile("Попытка подключения к сайту: " + vpnSite, ref checkResult);
 					string connectionResult = ExecuteCommand("connect -s " + vpnSite + " -u " + vpnUser + " -p " + vpnPassword);
-					LoggingSystem.LogMessageToFile(connectionResult);
+					LoggingSystem.LogMessageToFile(connectionResult, ref checkResult);
 
-					if (!connectionResult.Contains("Connection was successfully established") && 
+					if (!connectionResult.Contains("Connection was successfully established") &&
 						!connectionResult.Contains("Client is already connected")) {
-						string message = "Не удалось подключиться к сайту: " + vpnSite;
-						LoggingSystem.LogMessageToFile(message);
-						errors += message + Environment.NewLine + 
+						string currentMessage = "!!! Не удалось подключиться к сайту: " + vpnSite;
+						LoggingSystem.LogMessageToFile(currentMessage, ref checkResult);
+						errors += currentMessage + Environment.NewLine +
 							"Результат выполнения команды: " + connectionResult +
 							Environment.NewLine + Environment.NewLine;
 						continue;
 					}
 
-					LoggingSystem.LogMessageToFile("Проверка доступности ресурсов (Ping)");
+					LoggingSystem.LogMessageToFile("Проверка доступности ресурсов (Ping)", ref checkResult);
 					string pingWithError = string.Empty;
 					foreach (string resource in resourcesPing) {
-						LoggingSystem.LogMessageToFile("Ресурс: " + resource);
+						LoggingSystem.LogMessageToFile("Ресурс: " + resource, ref checkResult);
 
-						if (!IsPingHostOk(resource, out string resultMessage))
+						if (!IsPingHostOk(resource, out string resultMessage, ref checkResult))
 							pingWithError += resource + " - " + resultMessage + Environment.NewLine;
 					}
 
 					if (!string.IsNullOrEmpty(pingWithError)) {
-						string message = "Используя подключение к сайту " + vpnSite + 
+						string currentMessage = "!!! Используя подключение к сайту " + vpnSite +
 							" не удалось получить доступ к ресурсам (PING): " + pingWithError;
-						LoggingSystem.LogMessageToFile(message);
-						errors += message + Environment.NewLine + Environment.NewLine;
+						LoggingSystem.LogMessageToFile(currentMessage, ref checkResult);
+						errors += currentMessage + Environment.NewLine + Environment.NewLine;
 					}
-
-					LoggingSystem.LogMessageToFile("Проверка доступности ресурсов (RDP port)");
+					
+					LoggingSystem.LogMessageToFile("Проверка доступности ресурсов (RDP port)", ref checkResult);
 					string rdpWithError = string.Empty;
 					foreach (string resource in resourcesRdpPort) {
-						LoggingSystem.LogMessageToFile("Ресурс: " + resource);
+						LoggingSystem.LogMessageToFile("Ресурс: " + resource, ref checkResult);
 
-						if (!IsRdpAvailable(resource, out string resultMessage))
+						if (!IsRdpAvailable(resource, out string resultMessage, ref checkResult))
 							rdpWithError += resource + " - " + resultMessage + Environment.NewLine;
 					}
 
 					if (!string.IsNullOrEmpty(rdpWithError)) {
-						string message = "Используя подключение к сайту " + vpnSite + 
+						string currentMessage = "!!! Используя подключение к сайту " + vpnSite +
 							" не удалось получить доступ к ресурсам (RDP port): " + rdpWithError;
-						LoggingSystem.LogMessageToFile(message);
-						errors += message + Environment.NewLine + Environment.NewLine;
+						LoggingSystem.LogMessageToFile(currentMessage, ref checkResult);
+						errors += currentMessage + Environment.NewLine + Environment.NewLine;
 					}
-
-					LoggingSystem.LogMessageToFile("Отключение");
+					
+					LoggingSystem.LogMessageToFile("Отключение", ref checkResult);
 					string disconnectResult = ExecuteCommand("disconnect");
-					LoggingSystem.LogMessageToFile(disconnectResult);
+					LoggingSystem.LogMessageToFile(disconnectResult, ref checkResult);
+
 					if (!disconnectResult.Contains("Connection was successfully disconnected")) {
-						string message = "Не удалось корректно отключиться от сайта: " + vpnSite;
-						errors += message + Environment.NewLine +
-							"Результат выполнения команды: " + disconnectResult + 
+						string currentMessage = "!!! Не удалось корректно отключиться от сайта: " + vpnSite;
+						LoggingSystem.LogMessageToFile(currentMessage, ref checkResult);
+						errors += currentMessage + Environment.NewLine +
+							"Результат выполнения команды: " + disconnectResult +
 							Environment.NewLine + Environment.NewLine;
 					}
 				}
 			}
 
 			if (string.IsNullOrEmpty(errors)) {
-				LoggingSystem.LogMessageToFile("Проверка выполнена успешно, ошибок не обнаружено");
+				LoggingSystem.LogMessageToFile("--- Проверка выполнена успешно, ошибок не обнаружено", ref checkResult);
 				mailSystemErrorSendedToStp = false;
-				return;
+			} else {
+				LoggingSystem.LogMessageToFile("!!! Во время проверки обнаружены одна или несколько ошибок", ref checkResult);
+
+				if (previousSendDay == DateTime.Now.Day && mailSystemErrorSendedToStp) {
+					LoggingSystem.LogMessageToFile("Сообщение в СТП было отправлено ранее", ref checkResult);
+				} else {
+					LoggingSystem.LogMessageToFile("Отправка сообщения в СТП", ref checkResult);
+					MailSystem.SendMessage(errors);
+
+					previousSendDay = DateTime.Now.Day;
+					mailSystemErrorSendedToStp = true;
+				}
 			}
 
-			LoggingSystem.LogMessageToFile("Во время проверки обнаружены одна или несколько ошибок");
+			if (isSingleCheck)
+				MailSystem.SendMessage(checkResult, true);
+		}
 
-			if (previousSendDay == DateTime.Now.Day && mailSystemErrorSendedToStp) {
-				LoggingSystem.LogMessageToFile("Сообщение было отправлено ранее");
-				return;
-			}
-
-			LoggingSystem.LogMessageToFile("Отправка сообщения в СТП");
-			MailSystem.SendErrorMessageToStp(errors);
-
-			previousSendDay = DateTime.Now.Day;
-			mailSystemErrorSendedToStp = true;
+		private void Timer_Elapsed(object sender, ElapsedEventArgs e) {
+			CheckVpnState();
 		}
 
 		private string ExecuteCommand(string command) {
@@ -161,10 +169,10 @@ namespace VPNStateChecker {
 			}
 		}
 
-		public static bool IsPingHostOk(string host, out string resultMessage) {
+		public static bool IsPingHostOk(string host, out string resultMessage, ref string checkResult) {
 			bool result = false;
 			resultMessage = string.Empty;
-			IPAddress address = GetIpFromHost(ref host);
+			IPAddress address = GetIpFromHost(host, ref checkResult);
 			PingOptions pingOptions = new PingOptions(128, true);
 			Ping ping = new Ping();
 			byte[] buffer = new byte[32];
@@ -178,44 +186,44 @@ namespace VPNStateChecker {
 								case IPStatus.Success:
 									resultMessage = string.Format("Reply from {0}: bytes={1} time={2}ms TTL={3}",
 										pingReply.Address, pingReply.Buffer.Length, pingReply.RoundtripTime, pingReply.Options.Ttl);
-									LoggingSystem.LogMessageToFile(resultMessage);
+									LoggingSystem.LogMessageToFile(resultMessage, ref checkResult);
 									result = true;
 									break;
 								case IPStatus.TimedOut:
 									resultMessage = "Connection has timed out...";
-									LoggingSystem.LogMessageToFile(resultMessage);
+									LoggingSystem.LogMessageToFile(resultMessage, ref checkResult);
 									result = false;
 									break;
 								default:
 									resultMessage = "Ping failed: " + pingReply.Status.ToString();
-									LoggingSystem.LogMessageToFile(resultMessage);
+									LoggingSystem.LogMessageToFile(resultMessage, ref checkResult);
 									result = false;
 									break;
 							}
 						} else
 							resultMessage = "Connection failed for an unknown reason...";
-							LoggingSystem.LogMessageToFile(resultMessage);
+							LoggingSystem.LogMessageToFile(resultMessage, ref checkResult);
 					} catch (Exception e) {
 						resultMessage = "Connection Error: " + e.Message + Environment.NewLine + e.StackTrace;
-						LoggingSystem.LogMessageToFile(resultMessage);
+						LoggingSystem.LogMessageToFile(resultMessage, ref checkResult);
 					}
 				}
 			} else {
 				resultMessage = "No Internet connection found...";
-				LoggingSystem.LogMessageToFile(resultMessage);
+				LoggingSystem.LogMessageToFile(resultMessage, ref checkResult);
 			}
 			
 			return result;
 		}
 
-		private static IPAddress GetIpFromHost(ref string host) { 
+		private static IPAddress GetIpFromHost(string host, ref string checkResult) { 
 			IPAddress address = null;
 
 			try {
 				address = Dns.GetHostEntry(host).AddressList[0];
 			} catch (SocketException ex) {
 				string errMessage = string.Format("DNS Error: {0}", ex.Message);
-				LoggingSystem.LogMessageToFile(errMessage);
+				LoggingSystem.LogMessageToFile(errMessage, ref checkResult);
 			}
 
 			return address;
@@ -243,12 +251,12 @@ namespace VPNStateChecker {
 			return true;
 		}
 
-		static bool IsRdpAvailable(string host, out string resultMessage) {
+		static bool IsRdpAvailable(string host, out string resultMessage, ref string checkResult) {
 			resultMessage = string.Empty;
 
 			try {
 				using (new TcpClient(host, 3389)) {
-					LoggingSystem.LogMessageToFile("Порт 3389 для хоста " + host + " - доступен");
+					LoggingSystem.LogMessageToFile("Порт 3389 для хоста " + host + " - доступен", ref checkResult);
 					return true;
 				}
 			} catch (Exception e) {

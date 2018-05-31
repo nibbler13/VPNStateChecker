@@ -21,13 +21,18 @@ namespace VPNStateChecker {
 		}
 
 		static void Main(string[] args) {
-			if (Environment.UserInteractive) {
-				Start();
+			if (Environment.UserInteractive || Environment.UserName.ToLower().Equals("nnkk-srv-scripts")) {
+				if (args.Length == 1 && args[0].ToLower().Equals("CheckVpnService".ToLower())) {
+					EventSystem eventSystem = new EventSystem();
+					eventSystem.CheckVpnState(true);
+				} else {
+					Start();
 
-				Console.WriteLine("Press any key to stop...");
-				Console.ReadKey(true);
+					Console.WriteLine("Press any key to stop...");
+					Console.ReadKey(true);
 
-				Stop();
+					Stop();
+				}
 			} else {
 				using (Service service = new Service())
 					ServiceBase.Run(service);
@@ -35,16 +40,18 @@ namespace VPNStateChecker {
 		}
 
 		private static void Start() {
+			string empty = string.Empty;
 			LoggingSystem.LogMessageToFile("Starting, cycle interval in minutes:" +
-				Properties.Settings.Default.CheckingPeriodInMinutes);
+				Properties.Settings.Default.CheckingPeriodInMinutes, ref empty);
 
 			EventSystem eventSystem = new EventSystem();
-			Thread thread = new Thread(eventSystem.CheckVpnState);
+			Thread thread = new Thread(eventSystem.CheckVpnStateByTimer);
 			thread.Start();
 		}
 
 		private static void Stop() {
-			LoggingSystem.LogMessageToFile("Stopping");
+			string empty = string.Empty;
+			LoggingSystem.LogMessageToFile("Stopping", ref empty);
 		}
 	}
 }

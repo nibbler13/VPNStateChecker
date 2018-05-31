@@ -6,7 +6,7 @@ using System.IO;
 
 namespace VPNStateChecker {
 	static class MailSystem {
-		public static void SendErrorMessageToStp (string text = "") {
+		public static void SendMessage (string text, bool isSingleCheck = false) {
 			try {
 				MailAddress to = new MailAddress(Properties.Settings.Default.MailStpAddress);
 				MailAddress from = new MailAddress(
@@ -18,13 +18,22 @@ namespace VPNStateChecker {
 					Environment.NewLine + "Обнаружены ошибки во время проверки работоспособности VPN: " +
 					Environment.NewLine + text;
 
-				body += Environment.NewLine + "Журнал работы во вложении" + 
-					Environment.NewLine + Environment.NewLine + 
+				body += Environment.NewLine + "Журнал работы во вложении";
+
+				if (isSingleCheck) {
+					to = new MailAddress(Properties.Settings.Default.MailToSingleCheck);
+					subject = "Результаты проверки сервиса VPN - " +
+							(text.Contains("!") ? " Внимание! Обнаружены ошибки!" : "ошибок не обнаружено");
+					body = text;
+				}
+
+				body = body + Environment.NewLine + Environment.NewLine +
 					"Это автоматически сгенерированное сообщение" +
 					Environment.NewLine + "Просьба не отвечать на него" + Environment.NewLine +
 					 "Имя системы: " + Environment.MachineName;
 
-				LoggingSystem.LogMessageToFile("Отправка сообщения, тема: " + subject + ", текст: " + body);
+				string empty = string.Empty;
+				LoggingSystem.LogMessageToFile("Отправка сообщения, тема: " + subject + ", текст: " + body, ref empty);
 				
 				using (MailMessage message = new MailMessage()) {
 					message.To.Add(to);
@@ -33,9 +42,11 @@ namespace VPNStateChecker {
 					message.Subject = subject;
 					message.Body = body;
 					if (!string.IsNullOrEmpty(Properties.Settings.Default.MailCopyAddresss))
-						message.CC.Add(Properties.Settings.Default.MailCopyAddresss);
-					
-					message.Attachments.Add(new Attachment(LoggingSystem.GetTodayLogFileName()));
+						foreach (string address in Properties.Settings.Default.MailCopyAddresss.Split(';'))
+							message.CC.Add(address);
+
+					if (!isSingleCheck)
+						message.Attachments.Add(new Attachment(LoggingSystem.GetTodayLogFileName()));
 
 					SmtpClient client = new SmtpClient(Properties.Settings.Default.MailServer, 25);
 					client.UseDefaultCredentials = false;
@@ -49,7 +60,8 @@ namespace VPNStateChecker {
 					return;
 				}
 			} catch (Exception e) {
-				LoggingSystem.LogMessageToFile(e.Message + Environment.NewLine + e.StackTrace);
+				string empty = string.Empty;
+				LoggingSystem.LogMessageToFile(e.Message + Environment.NewLine + e.StackTrace, ref empty);
 			}
 		}
 	}
