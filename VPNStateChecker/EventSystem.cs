@@ -9,6 +9,7 @@ using System.Net.NetworkInformation;
 using System.Net.Sockets;
 using System.Runtime.InteropServices;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Timers;
 
@@ -22,6 +23,7 @@ namespace VPNStateChecker {
 		private readonly string[] resourcesRdpPort;
 
 		private int previousSendDay = -1;
+		private int errorsInSuccession = 0;
 		private bool mailSystemErrorSendedToStp = false;
 
 		public EventSystem() {
@@ -34,7 +36,7 @@ namespace VPNStateChecker {
 		}
 
 		public void CheckVpnStateByTimer() {
-			Timer timer = new Timer(Properties.Settings.Default.CheckingPeriodInMinutes * 60 * 1000);
+			System.Timers.Timer timer = new System.Timers.Timer(Properties.Settings.Default.CheckingPeriodInMinutes * 60 * 1000);
 			timer.Elapsed += Timer_Elapsed;
 			timer.AutoReset = true;
 			timer.Start();
@@ -84,35 +86,51 @@ namespace VPNStateChecker {
 
 					LoggingSystem.LogMessageToFile("Проверка доступности ресурсов (Ping)", ref checkResult);
 					string pingWithError = string.Empty;
+					int pingErrors = 0;
 					foreach (string resource in resourcesPing) {
 						LoggingSystem.LogMessageToFile("Ресурс: " + resource, ref checkResult);
 
-						if (!IsPingHostOk(resource, out string resultMessage, ref checkResult))
+						if (!IsPingHostOk(resource, out string resultMessage, ref checkResult)) {
 							pingWithError += resource + " - " + resultMessage + Environment.NewLine;
+							pingErrors++;
+						}
 					}
 
-					if (!string.IsNullOrEmpty(pingWithError)) {
+					if (pingErrors > 0) {
 						string currentMessage = "!!! Используя подключение к сайту " + vpnSite +
 							" не удалось получить доступ к ресурсам (PING): " + pingWithError;
 						LoggingSystem.LogMessageToFile(currentMessage, ref checkResult);
+
+						if (pingErrors < resourcesPing.Length / 2)
+							continue;
+
 						errors += currentMessage + Environment.NewLine + Environment.NewLine;
 					}
 					
 					LoggingSystem.LogMessageToFile("Проверка доступности ресурсов (RDP port)", ref checkResult);
 					string rdpWithError = string.Empty;
+					int rdpErrors = 0;
 					foreach (string resource in resourcesRdpPort) {
 						LoggingSystem.LogMessageToFile("Ресурс: " + resource, ref checkResult);
 
-						if (!IsRdpAvailable(resource, out string resultMessage, ref checkResult))
+						if (!IsRdpAvailable(resource, out string resultMessage, ref checkResult)) {
 							rdpWithError += resource + " - " + resultMessage + Environment.NewLine;
+							rdpErrors++;
+						}
 					}
 
-					if (!string.IsNullOrEmpty(rdpWithError)) {
+					if (rdpErrors > 0) {
 						string currentMessage = "!!! Используя подключение к сайту " + vpnSite +
 							" не удалось получить доступ к ресурсам (RDP port): " + rdpWithError;
 						LoggingSystem.LogMessageToFile(currentMessage, ref checkResult);
+
+						if (rdpErrors < resourcesRdpPort.Length / 2)
+							continue;
+
 						errors += currentMessage + Environment.NewLine + Environment.NewLine;
 					}
+
+					Thread.Sleep(3000);
 					
 					LoggingSystem.LogMessageToFile("Отключение", ref checkResult);
 					string disconnectResult = ExecuteCommand("disconnect");
@@ -131,11 +149,15 @@ namespace VPNStateChecker {
 			if (string.IsNullOrEmpty(errors)) {
 				LoggingSystem.LogMessageToFile("--- Проверка выполнена успешно, ошибок не обнаружено", ref checkResult);
 				mailSystemErrorSendedToStp = false;
+				errorsInSuccession = 0;
 			} else {
 				LoggingSystem.LogMessageToFile("!!! Во время проверки обнаружены одна или несколько ошибок", ref checkResult);
+				errorsInSuccession++;
 
-				if (previousSendDay == DateTime.Now.Day && mailSystemErrorSendedToStp) {
+				if (mailSystemErrorSendedToStp) {
 					LoggingSystem.LogMessageToFile("Сообщение в СТП было отправлено ранее", ref checkResult);
+				} else if (errorsInSuccession <3) {
+					LoggingSystem.LogMessageToFile("Ошибка проявилась менее 3 раз подряд, пропуск отправки заявки", ref checkResult);
 				} else {
 					LoggingSystem.LogMessageToFile("Отправка сообщения в СТП", ref checkResult);
 					MailSystem.SendMessage(errors);

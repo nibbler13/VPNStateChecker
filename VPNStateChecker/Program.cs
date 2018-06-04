@@ -46,6 +46,7 @@ namespace VPNStateChecker {
 
 			EventSystem eventSystem = new EventSystem();
 			Thread thread = new Thread(eventSystem.CheckVpnStateByTimer);
+			thread.IsBackground = true;
 			thread.Start();
 		}
 
