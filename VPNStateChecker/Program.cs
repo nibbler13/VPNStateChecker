@@ -21,18 +21,23 @@ namespace VPNStateChecker {
 		}
 
 		static void Main(string[] args) {
-			if (Environment.UserInteractive || Environment.UserName.ToLower().Equals("nnkk-srv-scripts")) {
-				if (args.Length == 1 && args[0].ToLower().Equals("CheckVpnService".ToLower())) {
+			if (args.Length == 1) {
+				string arg0 = args[0].ToLower();
+				if (arg0.Equals("CheckVpnService".ToLower())) {
 					EventSystem eventSystem = new EventSystem();
 					eventSystem.CheckVpnState(true);
-				} else {
-					Start();
-
-					Console.WriteLine("Press any key to stop...");
-					Console.ReadKey(true);
-
-					Stop();
+				} else if (arg0.Equals("zabbix")) {
+					EventSystem eventSystem = new EventSystem(true);
+					eventSystem.CheckVpnState(false);
 				}
+			} else if (Environment.UserInteractive) {
+				Start();
+
+				Console.WriteLine("Press any key to stop...");
+				Console.ReadKey(true);
+
+				Stop();
+
 			} else {
 				using (Service service = new Service())
 					ServiceBase.Run(service);

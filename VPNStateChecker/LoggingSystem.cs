@@ -7,8 +7,9 @@ namespace VPNStateChecker {
 		private const string LOG_FILE_NAME = "VPNStateChecker_*.log";
 		private const int MAX_LOGFILES_QUANTITY = 7;
 
-		public static void LogMessageToFile(string msg, ref string result) {
-			Console.WriteLine(msg);
+		public static void LogMessageToFile(string msg, ref string result, bool writeToConsole = true) {
+			if (writeToConsole)
+				Console.WriteLine(msg);
 
 			string logFileName = GetTodayLogFileName();
 			result += ToLogFormat(msg, true);
