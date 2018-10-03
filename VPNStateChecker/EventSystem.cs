@@ -174,7 +174,7 @@ namespace VPNStateChecker {
 				if (isZabbixCheck)
 					Console.WriteLine("1");
 			}
-
+			
 			if (isSingleCheck)
 				MailSystem.SendMessage(checkResult, true);
 		}
