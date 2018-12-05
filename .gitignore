@@ -262,3 +262,4 @@ __pycache__/
 *.config
 *.settings
 VPNStateChecker/Properties/Settings.Designer.cs
+VPNStateConverter/Properties/Settings.Designer.cs

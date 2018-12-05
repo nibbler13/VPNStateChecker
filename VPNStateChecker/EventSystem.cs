@@ -71,79 +71,11 @@ namespace VPNStateChecker {
 							currentConfig + Environment.NewLine + Environment.NewLine;
 						continue;
 					}
-					
-					LoggingSystem.LogMessageToFile("Попытка подключения к сайту: " + vpnSite, ref checkResult, !isZabbixCheck);
-					string connectionResult = ExecuteCommand("connect -s " + vpnSite + " -u " + vpnUser + " -p " + vpnPassword);
-					LoggingSystem.LogMessageToFile(connectionResult, ref checkResult, !isZabbixCheck);
 
-					if (!connectionResult.Contains("Connection was successfully established") &&
-						!connectionResult.Contains("Client is already connected")) {
-						string currentMessage = "!!! Не удалось подключиться к сайту: " + vpnSite;
-						LoggingSystem.LogMessageToFile(currentMessage, ref checkResult, !isZabbixCheck);
-						errors += currentMessage + Environment.NewLine +
-							"Результат выполнения команды: " + connectionResult +
-							Environment.NewLine + Environment.NewLine;
-						continue;
-					}
+					bool isAvailable = CheckVpnServerAvailability(vpnSite, ref checkResult, ref errors);
 
-					LoggingSystem.LogMessageToFile("Проверка доступности ресурсов (Ping)", ref checkResult, !isZabbixCheck);
-					string pingWithError = string.Empty;
-					int pingErrors = 0;
-					foreach (string resource in resourcesPing) {
-						LoggingSystem.LogMessageToFile("Ресурс: " + resource, ref checkResult, !isZabbixCheck);
-
-						if (!IsPingHostOk(resource, out string resultMessage, ref checkResult)) {
-							pingWithError += resource + " - " + resultMessage + Environment.NewLine;
-							pingErrors++;
-						}
-					}
-
-					if (pingErrors > 0) {
-						string currentMessage = "!!! Используя подключение к сайту " + vpnSite +
-							" не удалось получить доступ к ресурсам (PING): " + pingWithError;
-						LoggingSystem.LogMessageToFile(currentMessage, ref checkResult, !isZabbixCheck);
-
-						if (pingErrors < resourcesPing.Length / 2)
-							continue;
-
-						errors += currentMessage + Environment.NewLine + Environment.NewLine;
-					}
-					
-					LoggingSystem.LogMessageToFile("Проверка доступности ресурсов (RDP port)", ref checkResult, !isZabbixCheck);
-					string rdpWithError = string.Empty;
-					int rdpErrors = 0;
-					foreach (string resource in resourcesRdpPort) {
-						LoggingSystem.LogMessageToFile("Ресурс: " + resource, ref checkResult, !isZabbixCheck);
-
-						if (!IsRdpAvailable(resource, out string resultMessage, ref checkResult)) {
-							rdpWithError += resource + " - " + resultMessage + Environment.NewLine;
-							rdpErrors++;
-						}
-					}
-
-					if (rdpErrors > 0) {
-						string currentMessage = "!!! Используя подключение к сайту " + vpnSite +
-							" не удалось получить доступ к ресурсам (RDP port): " + rdpWithError;
-						LoggingSystem.LogMessageToFile(currentMessage, ref checkResult, !isZabbixCheck);
-
-						if (rdpErrors < resourcesRdpPort.Length / 2)
-							continue;
-
-						errors += currentMessage + Environment.NewLine + Environment.NewLine;
-					}
-
-					Thread.Sleep(3000);
-					
-					LoggingSystem.LogMessageToFile("Отключение", ref checkResult, !isZabbixCheck);
-					string disconnectResult = ExecuteCommand("disconnect");
-					LoggingSystem.LogMessageToFile(disconnectResult, ref checkResult, !isZabbixCheck);
-
-					if (!disconnectResult.Contains("Connection was successfully disconnected")) {
-						string currentMessage = "!!! Не удалось корректно отключиться от сайта: " + vpnSite;
-						LoggingSystem.LogMessageToFile(currentMessage, ref checkResult, !isZabbixCheck);
-						errors += currentMessage + Environment.NewLine +
-							"Результат выполнения команды: " + disconnectResult +
-							Environment.NewLine + Environment.NewLine;
+					if (!string.IsNullOrEmpty(Properties.Settings.Default.MailAddressToZabbix)) {
+						MailSystem.SendMessage(vpnSite + ":" + isAvailable, false, true);
 					}
 				}
 			}
@@ -178,6 +110,102 @@ namespace VPNStateChecker {
 			if (isSingleCheck)
 				MailSystem.SendMessage(checkResult, true);
 		}
+
+
+		private bool CheckVpnServerAvailability(string vpnSite, ref string checkResult, ref string errors) {
+			bool isAvailable = true;
+
+			LoggingSystem.LogMessageToFile("Попытка подключения к сайту: " + vpnSite, ref checkResult, !isZabbixCheck);
+			string connectionResult = ExecuteCommand("connect -s " + vpnSite + " -u " + vpnUser + " -p " + vpnPassword);
+			LoggingSystem.LogMessageToFile(connectionResult, ref checkResult, !isZabbixCheck);
+
+			if (connectionResult.Contains("Client is already connected")) {
+				string result = ExecuteCommand("disconnect");
+				LoggingSystem.LogMessageToFile(result, ref checkResult, !isZabbixCheck);
+				if (!result.Equals("Connection could not be disconnected")) {
+					LoggingSystem.LogMessageToFile("Не удалось отключиться от текущей сессии", ref checkResult, !isZabbixCheck);
+					return false;
+				}
+
+				connectionResult = ExecuteCommand("connect -s " + vpnSite + " -u " + vpnUser + " -p " + vpnPassword);
+				LoggingSystem.LogMessageToFile(connectionResult, ref checkResult, !isZabbixCheck);
+			}
+
+			if (!connectionResult.Contains("Connection was successfully established") &&
+				!connectionResult.Contains("Client is already connected")) {
+				string currentMessage = "!!! Не удалось подключиться к сайту: " + vpnSite;
+				LoggingSystem.LogMessageToFile(currentMessage, ref checkResult, !isZabbixCheck);
+				errors += currentMessage + Environment.NewLine +
+					"Результат выполнения команды: " + connectionResult +
+					Environment.NewLine + Environment.NewLine;
+				return false;
+			}
+
+			LoggingSystem.LogMessageToFile("Проверка доступности ресурсов (Ping)", ref checkResult, !isZabbixCheck);
+			string pingWithError = string.Empty;
+			int pingErrors = 0;
+			foreach (string resource in resourcesPing) {
+				LoggingSystem.LogMessageToFile("Ресурс: " + resource, ref checkResult, !isZabbixCheck);
+
+				if (!IsPingHostOk(resource, out string resultMessage, ref checkResult)) {
+					pingWithError += resource + " - " + resultMessage + Environment.NewLine;
+					pingErrors++;
+				}
+			}
+
+			if (pingErrors > 0) {
+				string currentMessage = "!!! Используя подключение к сайту " + vpnSite +
+					" не удалось получить доступ к ресурсам (PING): " + pingWithError;
+				LoggingSystem.LogMessageToFile(currentMessage, ref checkResult, !isZabbixCheck);
+
+				if (pingErrors >= resourcesPing.Length / 2) {
+					isAvailable = false;
+					errors += currentMessage + Environment.NewLine + Environment.NewLine;
+				}
+
+			}
+
+			LoggingSystem.LogMessageToFile("Проверка доступности ресурсов (RDP port)", ref checkResult, !isZabbixCheck);
+			string rdpWithError = string.Empty;
+			int rdpErrors = 0;
+			foreach (string resource in resourcesRdpPort) {
+				LoggingSystem.LogMessageToFile("Ресурс: " + resource, ref checkResult, !isZabbixCheck);
+
+				if (!IsRdpAvailable(resource, out string resultMessage, ref checkResult)) {
+					rdpWithError += resource + " - " + resultMessage + Environment.NewLine;
+					rdpErrors++;
+				}
+			}
+
+			if (rdpErrors > 0) {
+				string currentMessage = "!!! Используя подключение к сайту " + vpnSite +
+					" не удалось получить доступ к ресурсам (RDP port): " + rdpWithError;
+				LoggingSystem.LogMessageToFile(currentMessage, ref checkResult, !isZabbixCheck);
+
+				if (rdpErrors >= resourcesRdpPort.Length / 2) {
+					isAvailable = false;
+					errors += currentMessage + Environment.NewLine + Environment.NewLine;
+				}
+			}
+
+			Thread.Sleep(3000);
+
+			LoggingSystem.LogMessageToFile("Отключение", ref checkResult, !isZabbixCheck);
+			string disconnectResult = ExecuteCommand("disconnect");
+			LoggingSystem.LogMessageToFile(disconnectResult, ref checkResult, !isZabbixCheck);
+
+			if (!disconnectResult.Contains("Connection was successfully disconnected")) {
+				string currentMessage = "!!! Не удалось корректно отключиться от сайта: " + vpnSite;
+				LoggingSystem.LogMessageToFile(currentMessage, ref checkResult, !isZabbixCheck);
+				errors += currentMessage + Environment.NewLine +
+					"Результат выполнения команды: " + disconnectResult +
+					Environment.NewLine + Environment.NewLine;
+				isAvailable = false;
+			}
+			
+			return isAvailable;
+		}
+
 
 		private void Timer_Elapsed(object sender, ElapsedEventArgs e) {
 			CheckVpnState();

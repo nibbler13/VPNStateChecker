@@ -3,15 +3,15 @@ using System.IO;
 using System.Linq;
 
 namespace VPNStateChecker {
-	class LoggingSystem {
+	public class LoggingSystem {
 		private const string LOG_FILE_NAME = "VPNStateChecker_*.log";
 		private const int MAX_LOGFILES_QUANTITY = 7;
 
-		public static void LogMessageToFile(string msg, ref string result, bool writeToConsole = true) {
+		public static void LogMessageToFile(string msg, ref string result, bool writeToConsole = true, string vpnSite = "") {
 			if (writeToConsole)
 				Console.WriteLine(msg);
 
-			string logFileName = GetTodayLogFileName();
+			string logFileName = GetTodayLogFileName(vpnSite);
 			result += ToLogFormat(msg, true);
 
 			try {
@@ -24,9 +24,13 @@ namespace VPNStateChecker {
 			CheckAndCleanOldFiles();
 		}
 
-		public static string GetTodayLogFileName() {
+		public static string GetTodayLogFileName(string vpnSite) {
 			string today = DateTime.Now.ToString("yyyyMMdd");
-			return AppDomain.CurrentDomain.BaseDirectory + "\\" + LOG_FILE_NAME.Replace("*", today);
+
+			if (!string.IsNullOrEmpty(vpnSite))
+				vpnSite += "_";
+
+			return AppDomain.CurrentDomain.BaseDirectory + "\\" + LOG_FILE_NAME.Replace("*", vpnSite + "*").Replace("*", today);
 		}
 
 		private static void CheckAndCleanOldFiles() {
